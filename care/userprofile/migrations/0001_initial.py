@@ -6,6 +6,28 @@ import django.core.validators
 from django.conf import settings
 
 
+def createDefaultIntervals(apps, schema_editor):
+    ''' Create a few default necessary values for `NotificationInterval` '''
+    NotificationInterval = apps.get_model('userprofile',
+                                          'NotificationInterval')
+    db_alias = schema_editor.connection.alias
+    NotificationInterval.objects.using(db_alias).bulk_create([
+        NotificationInterval(name='Weekly', days=7),
+        NotificationInterval(name='Monthly', days=30),
+    ])
+
+
+def deleteDefaultIntervals(apps, schema_editor):
+    ''' Revert the changes by `createDefaultIntervals` '''
+    NotificationInterval = apps.get_model('userprofile',
+                                          'NotificationInterval')
+    db_alias = schema_editor.connection.alias
+    NotificationInterval.objects.using(db_alias).filter(
+        name='Weekly', days=7).delete()
+    NotificationInterval.objects.using(db_alias).filter(
+        name='Monthly', days=30).delete()
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -22,6 +44,8 @@ class Migration(migrations.Migration):
                 ('days', models.IntegerField()),
             ],
         ),
+        migrations.RunPython(
+            createDefaultIntervals, deleteDefaultIntervals),
         migrations.CreateModel(
             name='UserProfile',
             fields=[
