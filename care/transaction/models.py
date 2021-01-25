@@ -62,7 +62,19 @@ class Transaction(models.Model):
     amount = models.DecimalField(max_digits=6, decimal_places=2)
     what = models.CharField(max_length=24)
     buyer = models.ForeignKey(UserProfile, related_name='buyer', on_delete=models.PROTECT)
-    consumers = models.ManyToManyField(UserProfile, related_name='consumers')
+    consumers = models.ManyToManyField(
+        UserProfile,
+        through='TransactionConsumer',
+        related_name='consumers',
+    )
+    total_weight = models.DecimalField(
+        max_digits=8,
+        decimal_places=4,
+        editable=False,
+        help_text=(
+            'Sum of the "share weights" of all the people owing part of this share'
+        )
+    )  # Although this could be recomputed, it is stored in DB for efficiency
     group_account = models.ForeignKey(GroupAccount, on_delete=models.PROTECT)
     comment = models.CharField(max_length=200, blank=True)
     date = models.DateTimeField(default=datetime.datetime.now,
@@ -117,8 +129,48 @@ class Transaction(models.Model):
         )
         return transactions_all
 
+    def update_total_weight(self):
+        ''' Update the `total_weight` attribute. This should be called after the
+        consumers for this transaction, or their share weight, have been modified (and
+        saved to database) '''
+
+        tot_share = 0
+        for x_obj in self.consumers_detailed.all():
+            tot_share += x_obj.share_weight
+        self.total_weight = tot_share
+        self.save()
+
     def __str__(self):
         return self.what
+
+class TransactionConsumer(models.Model):
+    ''' The M2M intermediary table linking a Transaction to its consumers'
+    UserProfiles '''
+
+    transaction = models.ForeignKey(
+        Transaction,
+        on_delete=models.CASCADE,
+        related_name='consumers_detailed',
+    )
+    consumer = models.ForeignKey(
+        UserProfile,
+        on_delete=models.CASCADE,
+        related_name='transactions_detailed',
+    )
+    share_weight = models.DecimalField(
+        max_digits=6,
+        decimal_places=4,
+        help_text=(
+            'Proportion of this transaction, out of "total weight", that the '
+            'person owes.'
+        ),
+    )
+
+    class Meta:
+        unique_together = [
+            ('transaction', 'consumer'),
+        ]
+
 
 
 class TransactionRecurring(models.Model):
