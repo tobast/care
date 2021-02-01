@@ -5,11 +5,14 @@ from django import forms
 from bootstrap3_datetime.widgets import DateTimePicker
 
 from care.transaction.models import Transaction
+from care.transaction.models import TransactionConsumer
 from care.transaction.models import TransactionRecurring
 from care.transaction.models import TransactionReal
 from care.transaction.models import Modification
 from care.groupaccount.models import GroupAccount
 from care.userprofile.models import UserProfile
+
+from .fields import SelectShareConsumersWidget, ShareConsumersField
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +26,26 @@ class TransactionForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
-        if not cleaned_data.get("consumers") and not cleaned_data.get("is_shared_by_all"):
-            raise forms.ValidationError("Please select someone to share with.")
+        if not cleaned_data.get("consumers"):
+            if not cleaned_data.get("is_shared_by_all"):
+                raise forms.ValidationError("Please select someone to share with.")
+            all_users = UserProfile.objects.filter(
+                group_accounts=cleaned_data['group_account']
+            )
+            cleaned_data['consumers'] = {
+                'qs': all_users,
+                'weights': {user.pk: 1.0 for user in all_users.all()},
+            }
         return cleaned_data
+
+
+    def save(self, commit=True, *args, **kwargs):
+        instance = super().save(*args, commit=False, **kwargs)
+        instance.total_weight = 0
+        if commit:
+            instance.save()
+            self.save_m2m()
+        self.instance.update_total_weight()
 
     class Meta:
         model = Transaction
@@ -36,13 +56,11 @@ class NewTransactionForm(TransactionForm):
     def __init__(self, group_account_id, user, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.fields['consumers'] = forms.ModelMultipleChoiceField(
-            widget=forms.CheckboxSelectMultiple(),
+        self.fields['consumers'] = ShareConsumersField(
             queryset=UserProfile.objects.filter(group_accounts=group_account_id),
-            label='Shared by some',
-            required=False
+            label="Shared by some",
+            required=False,
         )
-
         self.fields['buyer'] = forms.ModelChoiceField(
             queryset=UserProfile.objects.filter(group_accounts=group_account_id),
             empty_label=None
@@ -78,8 +96,7 @@ class EditTransactionForm(TransactionForm):
         super().__init__(*args, **kwargs)
         transaction = self.instance
 
-        self.fields['consumers'] = forms.ModelMultipleChoiceField(
-            widget=forms.CheckboxSelectMultiple(),
+        self.fields['consumers'] = ShareConsumersField(
             queryset=UserProfile.objects.filter(group_accounts=transaction.group_account),
             label='Shared by some',
             required=False

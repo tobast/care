@@ -79,8 +79,6 @@ class NewTransactionView(FormView, BaseView):
 
     def form_valid(self, form):
         super().form_valid(form)
-        if form.cleaned_data['is_shared_by_all']:
-            form.cleaned_data['consumers'] = UserProfile.objects.filter(group_accounts=form.cleaned_data['group_account'])
         form.save()
         transaction = Transaction.objects.get(pk=form.instance.id)
         Modification.objects.create(user=UserProfile.objects.get(user=self.request.user), transaction=transaction)
@@ -117,8 +115,6 @@ class EditTransactionView(FormView, BaseView):
 
     def form_valid(self, form):
         super().form_valid(form)
-        if form.cleaned_data['is_shared_by_all']:
-            form.cleaned_data['consumers'] = UserProfile.objects.filter(group_accounts=form.cleaned_data['group_account'])
         form.save()
         transaction = Transaction.objects.get(pk=self.kwargs['pk'])
         modif = Modification.objects.create(user=UserProfile.objects.get(user=self.request.user), transaction=transaction)
@@ -192,9 +188,6 @@ class NewRecurringTransactionView(FormView, BaseView):
 
     def form_valid(self, form):
         super().form_valid(form)
-        if form.cleaned_data['is_shared_by_all']:
-            form.cleaned_data['consumers'] = UserProfile.objects.filter(
-                group_accounts=form.cleaned_data['group_account'])
         form.save()
         transaction = TransactionRecurring.objects.get(pk=form.instance.id)
         Modification.objects.create(
@@ -235,9 +228,6 @@ class EditRecurringTransactionView(FormView, BaseView):
 
     def form_valid(self, form):
         super().form_valid(form)
-        if form.cleaned_data['is_shared_by_all']:
-            form.cleaned_data['consumers'] = UserProfile.objects.filter(
-                group_accounts=form.cleaned_data['group_account'])
         form.save()
         transaction = TransactionRecurring.objects.get(pk=self.kwargs['pk'])
         modif = Modification.objects.create(
